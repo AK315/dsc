@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using CommandLine;
 using Microsoft.Extensions.Configuration;
 using System.Net;
+using dsc.Snmp;
 
 var serviceProvider = new ServiceCollection()
     .AddLogging(builder =>
@@ -31,5 +32,8 @@ var executionParameters = Parser.Default.ParseArguments<ExecutionParameters>(arg
         Console.WriteLine($"Start IP address is {ep.StartAddress}");
     });
 
+
+SnmpWalker.v1GetNext();
+SnmpWalker.v2GetTable();
 
 Console.ReadLine();

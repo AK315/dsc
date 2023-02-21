@@ -1,22 +1,12 @@
+namespace dsc.Model;
+
 using System.Net;
 
+/// <summary>
+/// Router entity.
+/// </summary>
 class Router : INode
 {
-    /// <summary>
-    /// Describes one ARP record
-    /// </summary>
-    public record ArpRecord
-    {
-        public ArpRecord(UInt32 mac, IPAddress ip)
-        {
-            Mac = mac;
-            Ip = ip;
-        }
-
-        public UInt32 Mac { get; private set; }
-        public IPAddress? Ip { get; private set; }   
-    }
-
     /// <summary>
     /// A collection or ARP records of the node
     /// </summary>
@@ -30,15 +20,15 @@ class Router : INode
     public void AddArp(UInt32 Mac, IPAddress Ip)
     {
         Arp = Arp ?? new List<ArpRecord>();
-        if(Arp.ToList<ArpRecord>().Find(arp => arp.Mac == Mac && arp.Ip == Ip) == null)
-            Arp.Append<ArpRecord> (new ArpRecord(Mac, Ip));
+        if (Arp.ToList<ArpRecord>().Find(arp => arp.Mac == Mac && arp.Ip == Ip) == null)
+            Arp.Append<ArpRecord>(new ArpRecord(Mac, Ip));
     }
 
     /// <summary>
     /// Removes ARP record with the specified MAC and IP from the collection of ARP records of the node
     /// </summary>
-    /// <param name="Mac"></param>
-    /// <param name="Ip"></param>
+    /// <param name="Mac">MAC address</param>
+    /// <param name="Ip">IP address</param>
     public void DelArp(UInt32 Mac, IPAddress Ip)
     {
         Arp?.ToList().RemoveAll(arp => arp.Mac == Mac && arp.Ip == Ip);
@@ -53,30 +43,15 @@ class Router : INode
     }
 
     /// <summary>
-    /// Describes one IP Interface
-    /// </summary>
-    public record IpInterface
-    {
-        public IPAddress Ip { get; private set; }
-        public uint Mask { get; private set; }
-
-        public IpInterface(IPAddress ip, uint mask)
-        {
-            Ip = ip;
-            Mask = mask;
-        }
-    }
-
-    /// <summary>
     /// Collection of IP Interfaces of the node
     /// </summary>
-    public ICollection<IpInterface>? IpInt;
+    public ICollection<IpInterface>? IpInt { get; private set; }
 
     /// <summary>
     /// Adds new IP Interface to the collection of IP Interfaces of the node
     /// </summary>
-    /// <param name="Ip"></param>
-    /// <param name="Mask"></param>
+    /// <param name="Ip">IP address</param>
+    /// <param name="Mask">Net mask cardinality</param>
     public void AddIpInt(IPAddress Ip, uint Mask)
     {
         IpInt = IpInt ?? new List<IpInterface>();
@@ -100,5 +75,39 @@ class Router : INode
     public void ClearIpInt()
     {
         IpInt?.Clear();
+    }
+
+    /// <summary>
+    /// Collection of IP addresses of next hops
+    /// </summary>
+    public ICollection<IPAddress>? NextHops { get; private set; }
+
+    /// <summary>
+    /// Adds new next hop to the collection of next hops of the node
+    /// </summary>
+    /// <param name="Ip">IP address</param>
+    public void AddNextHop(IPAddress Ip)
+    {
+        NextHops = NextHops ?? new List<IPAddress>();
+        if(NextHops.ToList<IPAddress>().Find(iface => iface.ToString() == Ip.ToString()) == null)
+            NextHops.Add(Ip);
+    }
+
+    /// <summary>
+    /// Removes next hop with specified IP from the collection of next hops of the node  
+    /// </summary>
+    /// <param name="Ip"></param>
+    /// <param name="Mask"></param>
+    public void DelNextHop(IPAddress Ip)
+    {
+        NextHops?.ToList<IPAddress>().RemoveAll(iface => iface.ToString() == Ip.ToString());
+    }
+
+    /// <summary>
+    /// Removes all next hops from the collection of next hops of the node
+    /// </summary>
+    public void ClearNextHops()
+    {
+        NextHops?.Clear();
     }
 }
