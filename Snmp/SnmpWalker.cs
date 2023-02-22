@@ -112,7 +112,7 @@ public static class SnmpWalker
         // IpAddress class is easy to use here because
         //  it will try to resolve constructor parameter if it doesn't
         //  parse to an IP address
-        IpAddress agent = new IpAddress("127.0.0.1");
+        IpAddress agent = new IpAddress("172.0.0.1");
 
         // Construct target
         UdpTarget target = new UdpTarget((IPAddress)agent, 161, 2000, 1);
@@ -202,7 +202,7 @@ public static class SnmpWalker
         target.Close();
     }
 
-    public static void v2GetTable()
+    public static void v2GetTable(string ip, string oid)
     {
         Dictionary<string, Dictionary<uint, AsnType>> result = new Dictionary<string, Dictionary<uint, AsnType>>();
         
@@ -212,7 +212,8 @@ public static class SnmpWalker
         // Prepare agent information
         AgentParameters param = new AgentParameters(SnmpVersion.Ver2, new OctetString("public"));
 
-        IpAddress peer = new IpAddress("100.0.0.100");
+//        IpAddress peer = new IpAddress("100.0.0.100");
+        IpAddress peer = new IpAddress(ip);
         if( ! peer.Valid ) {
             Console.WriteLine("Unable to resolve name or error in address for peer: {0}", "100.0.0.100");
             return;
@@ -221,7 +222,11 @@ public static class SnmpWalker
         UdpTarget target = new UdpTarget((IPAddress)peer);
         
         // This is the table OID
-        Oid startOid = new Oid(".1.3.6.1.2.1.4.22");
+//        Oid startOid = new Oid(".1.3.6.1.2.1.4.22");
+//        Oid startOid = new Oid(".1.3.6.1.2.1.2.2");
+//        Oid startOid = new Oid(".1.3.6.1.2.1.2.2.1.6.1");
+        Oid startOid = new Oid(oid);
+        
         
         // Each table OID is followed by .1 for the entry OID. Add it to the table OID
         startOid.Add(1); // Add Entry OID to the end of the table OID
@@ -265,8 +270,7 @@ public static class SnmpWalker
             // Check if there is an agent error returned in the reply
             if( res.Pdu.ErrorStatus != 0 ) 
             {
-                Console.WriteLine("SNMP agent returned error {0} for request Vb index {1}",
-                                    res.Pdu.ErrorStatus, res.Pdu.ErrorIndex);
+                Console.WriteLine("SNMP agent returned error {0} for request Vb index {1}", res.Pdu.ErrorStatus, res.Pdu.ErrorIndex);
                 target.Close();
                 return;
             }
@@ -321,7 +325,7 @@ public static class SnmpWalker
 
         if(result.Count <= 0)
         {
-            Console.WriteLine("No results returned.n");
+            Console.WriteLine("No results returned.\n");
         } 
         else 
         {
@@ -329,7 +333,7 @@ public static class SnmpWalker
             
             foreach( uint column in tableColumns ) 
             {
-                Console.Write("tColumn id {0}", column);
+                Console.Write("\tColumn id {0} |", column);
             }
 
             Console.WriteLine("");
@@ -342,11 +346,11 @@ public static class SnmpWalker
                 {
                     if( kvp.Value.ContainsKey(column) ) 
                     {
-                        Console.Write("t{0} ({1})", kvp.Value[column].ToString(), SnmpConstants.GetTypeName(kvp.Value[column].Type));
+                        Console.Write("\t{0} ({1}) |", kvp.Value[column].ToString(), SnmpConstants.GetTypeName(kvp.Value[column].Type));
                     } 
                     else 
                     {
-                        Console.Write("t-");
+                        Console.Write("\t|");
                     }
                 }
                 Console.WriteLine("");

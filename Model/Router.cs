@@ -5,8 +5,13 @@ using System.Net;
 /// <summary>
 /// Router entity.
 /// </summary>
-class Router : INode
+class Router : IRouter
 {
+
+    public Router()
+    {
+        
+    }
     /// <summary>
     /// A collection or ARP records of the node
     /// </summary>
