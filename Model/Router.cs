@@ -57,11 +57,11 @@ class Router : IRouter
     /// </summary>
     /// <param name="Ip">IP address</param>
     /// <param name="Mask">Net mask cardinality</param>
-    public void AddIpInt(IPAddress Ip, uint Mask)
+    public void AddIpInterface(string Description, UInt32 Mac, IPAddress Ip, uint Mask)
     {
         IpInt = IpInt ?? new List<IpInterface>();
         if(IpInt.ToList<IpInterface>().Find(iface => iface.Ip == Ip && iface.Mask == Mask) == null)
-            IpInt.Add(new IpInterface(Ip, Mask));
+            IpInt.Add(new IpInterface(Description, Mac, Ip, Mask));
     }
 
     /// <summary>

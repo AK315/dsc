@@ -5,44 +5,138 @@ using SnmpSharpNet;
 
 namespace dsc.Snmp;
 
-public class SnmpGetTable
+/// <summary>
+/// Class for requesting device parameters over SNMP
+/// </summary>
+public class SnmpDeviceService
 {
     private readonly IPAddress _ip;
-    private readonly Oid _startOid;
-
     private readonly string _communityName;
 
-    public SnmpGetTable(IPAddress ip, string oid, string communityName = "public")
+    private readonly int _port;
+
+    private readonly int _timeout;
+
+    private readonly int _retry;
+
+    public SnmpDeviceService(IPAddress ip, int port = 161, string communityName = "public", int timeout = 5000, int retry = 3)
+    {
+        _ip = ip;
+        _communityName = communityName;
+        _port = port;
+        _timeout = timeout;
+        _retry = retry;
+    }
+
+    /// <summary>
+    /// Returns value of a parameter with the specified OID
+    /// </summary>
+    /// <param name="oid">Device parameter OID</param>
+    /// <returns>Device parameter value</returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    /// <exception cref="Exception"></exception>
+    protected AsnType? GetPatameterValue(string oid)
+    {        
+        if(string.IsNullOrEmpty(oid))
+            throw new ArgumentNullException(nameof(oid));
+
+        AsnType? result = null;
+
+        // Define agent parameters class
+        AgentParameters param = new AgentParameters(new OctetString(_communityName));
+        
+        // Set SNMP version to 1
+        param.Version = SnmpVersion.Ver1;
+        
+        // Construct target
+        UdpTarget target = new UdpTarget(_ip, _port, _timeout, _retry);
+
+        // Define Oid that is the root of the MIB tree you wish to retrieve
+        Oid rootOid = new Oid(oid); 
+
+        // Pdu class used for all requests
+        Pdu pdu = new Pdu(PduType.Get);
+        pdu.VbList.Clear();
+        pdu.VbList.Add(rootOid);
+
+        try
+        {
+            // Make SNMP request
+            SnmpV1Packet response = (SnmpV1Packet)target.Request(pdu, param);
+            if (response != null)
+            {
+                if (response.Pdu.ErrorStatus != 0)
+                    throw new Exception($"ANMP agent returned error {response.Pdu.ErrorStatus} for request index {response.Pdu.ErrorIndex}");
+
+                if(response.Pdu.VbList.Count() > 0)
+                    result = response.Pdu.VbList[0].Value;
+            }
+        }
+        finally
+        {
+            target.Close();
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Returns value of type int of a parameter with the specified OID
+    /// </summary>
+    /// <param name="oid">Device parameter OID</param>
+    /// <returns>Device parameter value of type int</returns>
+    public async Task<int?> GetIntValueAsync(string oid)
+    {
+        return await Task.Run<int?>(() => 
+        {
+            int result;
+
+            AsnType? value = GetPatameterValue(oid);
+            if(value != null && int.TryParse(value.ToString(), out result))
+                return result;
+
+            return null;
+        });
+    }
+
+    /// <summary>
+    /// Returns value of type string of a parameter with the specified OID
+    /// </summary>
+    /// <param name="oid">Device parameter OID</param>
+    /// <returns>Device parameter value of type string</returns>
+    public async Task<string?> GetStringValueAsync(string oid)
+    {
+        return await Task.Run<string?>(() => 
+        {
+            AsnType? value = GetPatameterValue(oid);
+            if(value != null)
+                return value.ToString();
+
+            return null;
+        });
+    }
+
+    /// <summary>
+    /// Returns table of values of a parameter with the specified OID
+    /// </summary>
+    /// <param name="oid">Device parameter OID</param>
+    /// <returns>Device parameter value in table representation</returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    /// <exception cref="Exception"></exception>
+    public async Task<IDictionary<string, IDictionary<uint, AsnType>>?> GetTableAsync(string oid)
     {
         if(string.IsNullOrEmpty(oid))
             throw new ArgumentNullException(nameof(oid));
 
-        _ip = ip;
-        _startOid = new Oid(oid);
-        _communityName = communityName;
-    }
+        Oid startOid = new Oid(oid);
 
-    public Task<IDictionary<string, IDictionary<uint, AsnType>>?> GetTableAsync()
-    {
-        return Task.Factory.StartNew<IDictionary<string, IDictionary<uint, AsnType>>?>(() =>
+        return await Task.Run<IDictionary<string, IDictionary<uint, AsnType>>?>(() =>
         {
             IDictionary<string, IDictionary<uint, AsnType>>? result = new Dictionary<string, IDictionary<uint, AsnType>>();
 
-            // Not every row has a value for every column so keep track of all columns available in the table
-            //        List<uint> tableColumns = new List<uint>();
+            AgentParameters agentParameters = new AgentParameters(SnmpVersion.Ver2, new OctetString(_communityName));
 
-            AgentParameters agentParameters = new AgentParameters(SnmpVersion.Ver2, new OctetString("public"));
-            // IpAddress peer = new IpAddress(_ip);
-
-            // if(!peer.Valid)
-            //     throw new FormatException($"Name or IP address of the node is in invalid format: {peer}");
-
-            UdpTarget target = new UdpTarget(_ip);
-
-            // This is the table OID
-            //Oid startOid = new Oid(".1.3.6.1.2.1.4.22");
-            //        Oid startOid = new Oid(".1.3.6.1.2.1.2.2");
-            Oid startOid = new Oid(_startOid);
+            UdpTarget target = new UdpTarget(_ip, _port, _timeout, _retry);
 
             // Each table OID is followed by .1 for the entry OID. Add it to the table OID
             startOid.Add(1); // Add Entry OID to the end of the table OID
@@ -97,9 +191,6 @@ public class SnmpGetTable
                             // Column id is the first value passed to <table oid>.entry in the response OID
                             uint column = childOids[0];
 
-                            // if(!tableColumns.Contains(column))
-                            //     tableColumns.Add(column);
-
                             if (result.ContainsKey(strInst))
                                 result[strInst][column] = (AsnType)v.Value.Clone();
                             else
@@ -132,6 +223,7 @@ public class SnmpGetTable
 
             return result;
         });
+
     }
     protected string InstanceToString(uint[] instance)
     {
