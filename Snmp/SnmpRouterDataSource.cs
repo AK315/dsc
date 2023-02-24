@@ -57,12 +57,13 @@ public class SnmpRouterDataSource : IRouterDataSource
                         && IPAddress.TryParse(ipAddress, out Ip)
                         && IPAddress.TryParse(netMask, out Mask))
                     {
-                        var iface = result.Where(i => i.Index == index)?.First();
-                        if (iface != null)
-                        {
-                            iface.Ip = Ip;
-                            iface.Mask = Mask;
-                        }
+                        var ifaces = result.Where(i => i.Index == index);
+                        foreach(var iface in ifaces)
+                            if (iface != null)
+                            {
+                                iface.Ip = Ip;
+                                iface.Mask = Mask;
+                            }
                     }
                 }
             }
