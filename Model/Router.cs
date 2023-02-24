@@ -12,6 +12,11 @@ class Router : IRouter
     {
         
     }
+
+    /// <summary>
+    /// System name of the router
+    /// </summary>
+    public string? Name { get; set; }
     /// <summary>
     /// A collection or ARP records of the node
     /// </summary>
@@ -58,6 +63,9 @@ class Router : IRouter
     /// <param name="ipInterface">An IP interface object</param>
     public void AddIpInterface(IpInterface ipInterface)
     {
+        if(ipInterface == null)
+            return;
+
         DelIpInterface(ipInterface);
 
         IpInt = IpInt ?? new List<IpInterface>();
@@ -70,28 +78,14 @@ class Router : IRouter
     /// <param name="ipInterfaces">A number of IP interface objects to add</param>
     public void AddIpInterfaces(ICollection<IpInterface> ipInterfaces)
     {
+        if(ipInterfaces == null)
+            return;
+
         DelIpInterfaces(ipInterfaces);
 
         IpInt = IpInt ?? new List<IpInterface>();
         foreach (var iface in ipInterfaces)
             IpInt.Add(iface);
-    }
-
-    /// <summary>
-    /// Deletes IP Interfaces from the collection of IP Interfaces of the node
-    /// </summary>
-    /// <param name="ipInterfaces">Collectin of IP Interfaces to delete</param>
-    public void DelIpInterfaces(ICollection<IpInterface> ipInterfaces)
-    {
-        if(IpInt == null)
-            return;
-
-        foreach (var iface in ipInterfaces)
-        {
-            foreach (var oldInterface in IpInt.Where(@if => @if.Index == iface.Index).ToList())
-                if (oldInterface != null)
-                    IpInt.Remove(oldInterface);
-        }
     }
 
     /// <summary>
@@ -103,9 +97,32 @@ class Router : IRouter
         if(IpInt == null)
             return;
 
+        if(ipInterface == null)
+            return;
+
         foreach (var oldInterface in IpInt.Where(@if => @if.Index == ipInterface.Index).ToList())
             if (oldInterface != null)
                 IpInt.Remove(oldInterface);
+    }
+
+    /// <summary>
+    /// Deletes IP Interfaces from the collection of IP Interfaces of the node
+    /// </summary>
+    /// <param name="ipInterfaces">Collectin of IP Interfaces to delete</param>
+    public void DelIpInterfaces(ICollection<IpInterface> ipInterfaces)
+    {
+        if(IpInt == null)
+            return;
+
+        if(ipInterfaces == null)
+            return;
+
+        foreach (var iface in ipInterfaces)
+        {
+            foreach (var oldInterface in IpInt.Where(@if => @if.Index == iface.Index).ToList())
+                if (oldInterface != null)
+                    IpInt.Remove(oldInterface);
+        }
     }
 
     /// <summary>

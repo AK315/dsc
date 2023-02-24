@@ -6,6 +6,25 @@ namespace dsc.Snmp;
 
 public class SnmpRouterDataSource : IRouterDataSource
 {
+    /// <summary>
+    /// Returns router system name
+    /// </summary>
+    /// <param name="ip">Router's IP address</param>
+    /// <returns>Router's system name</returns>
+    /// <exception cref="NotImplementedException"></exception>
+    public async Task<string?> GetRouterSystemName(IPAddress ip)
+    {
+        SnmpDeviceService deviceService = new SnmpDeviceService(ip);
+        string? name = await deviceService.GetStringValueAsync(SnmpOid.RouterSystemName);
+
+        return name;
+    }
+
+    /// <summary>
+    /// Returns router's interface collection
+    /// </summary>
+    /// <param name="ip">Router's IP address</param>
+    /// <returns>Router's interface collection</returns>
     public async Task<ICollection<IpInterface>> GetRouterInterfacesAsync(IPAddress ip)
     {
         ICollection<IpInterface> result = new List<IpInterface>();
@@ -13,7 +32,7 @@ public class SnmpRouterDataSource : IRouterDataSource
         SnmpDeviceService deviceService = new SnmpDeviceService(ip);
         
         // Extracting interfaces data
-        var interfaceTable = await deviceService.GetTableAsync(SnmpOid.InterfaceTable);
+        var interfaceTable = await deviceService.GetTableAsync(SnmpOid.RouterInterfaceTable);
 
         if (interfaceTable != null)
         {
@@ -36,7 +55,7 @@ public class SnmpRouterDataSource : IRouterDataSource
         }
 
         // Extracting IP addresses data
-        var addressTable = await deviceService.GetTableAsync(SnmpOid.InterfaceIpAddressTable);
+        var addressTable = await deviceService.GetTableAsync(SnmpOid.RouterInterfaceIpAddressTable);
         if (addressTable != null)
         {
             foreach (KeyValuePair<string, IDictionary<uint, AsnType>>? p in addressTable)

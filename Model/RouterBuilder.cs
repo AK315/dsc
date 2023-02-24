@@ -18,12 +18,13 @@ public class RouterBuilder
 
     public async Task<IRouter> Build()
     {
-        var interfaces = await _source.GetRouterInterfacesAsync(_router_ip);
-
         var result = new Router();
-        
+
+        // Addint router system name
+        result.Name = await _source.GetRouterSystemName(_router_ip);
+
         // Adding router interfaces
-        result.AddIpInterfaces(interfaces);
+        result.AddIpInterfaces(await _source.GetRouterInterfacesAsync(_router_ip));
         
         return result;
     }
