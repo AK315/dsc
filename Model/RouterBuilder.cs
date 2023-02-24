@@ -20,9 +20,11 @@ public class RouterBuilder
     {
         var interfaces = await _source.GetRouterInterfacesAsync(_router_ip);
 
-
         var result = new Router();
-
+        
+        // Adding router interfaces
+        result.AddIpInterfaces(interfaces);
+        
         return result;
     }
 }

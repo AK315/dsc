@@ -169,7 +169,6 @@ public class SnmpDeviceService
                     if (res.Pdu.ErrorStatus != 0)
                         throw new Exception($"ANMP agent returned error {res.Pdu.ErrorStatus} for request index {res.Pdu.ErrorIndex}");
 
-
                     // Go through the VbList and check all replies
                     foreach (Vb v in res.Pdu.VbList)
                     {

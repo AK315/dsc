@@ -55,23 +55,57 @@ class Router : IRouter
     /// <summary>
     /// Adds new IP Interface to the collection of IP Interfaces of the node
     /// </summary>
-    /// <param name="Ip">IP address</param>
-    /// <param name="Mask">Net mask cardinality</param>
-    public void AddIpInterface(string Description, UInt32 Mac, IPAddress Ip, uint Mask)
+    /// <param name="ipInterface">An IP interface object</param>
+    public void AddIpInterface(IpInterface ipInterface)
     {
+        DelIpInterface(ipInterface);
+
         IpInt = IpInt ?? new List<IpInterface>();
-        if(IpInt.ToList<IpInterface>().Find(iface => iface.Ip == Ip && iface.Mask == Mask) == null)
-            IpInt.Add(new IpInterface(Description, Mac, Ip, Mask));
+        IpInt.Add(ipInterface);
     }
 
     /// <summary>
-    /// Removes IP Interface with specified IP and Mask from the collection of the node  
+    /// Adds several IP Interfaces to the collection of IP Interfaces of the node
     /// </summary>
-    /// <param name="Ip"></param>
-    /// <param name="Mask"></param>
-    public void DelIpInt(IPAddress Ip, uint Mask)
+    /// <param name="ipInterfaces">A number of IP interface objects to add</param>
+    public void AddIpInterfaces(ICollection<IpInterface> ipInterfaces)
     {
-        IpInt?.ToList<IpInterface>().RemoveAll(iface => iface.Ip == Ip && iface.Mask == Mask);
+        DelIpInterfaces(ipInterfaces);
+
+        IpInt = IpInt ?? new List<IpInterface>();
+        foreach (var iface in ipInterfaces)
+            IpInt.Add(iface);
+    }
+
+    /// <summary>
+    /// Deletes IP Interfaces from the collection of IP Interfaces of the node
+    /// </summary>
+    /// <param name="ipInterfaces">Collectin of IP Interfaces to delete</param>
+    public void DelIpInterfaces(ICollection<IpInterface> ipInterfaces)
+    {
+        if(IpInt == null)
+            return;
+
+        foreach (var iface in ipInterfaces)
+        {
+            foreach (var oldInterface in IpInt.Where(@if => @if.Index == iface.Index).ToList())
+                if (oldInterface != null)
+                    IpInt.Remove(oldInterface);
+        }
+    }
+
+    /// <summary>
+    /// Deletes IP Interface from the collection of IP Interfaces of the node
+    /// </summary>
+    /// <param name="ipInterface">IP Interface to delete</param>
+    public void DelIpInterface(IpInterface ipInterface)
+    {
+        if(IpInt == null)
+            return;
+
+        foreach (var oldInterface in IpInt.Where(@if => @if.Index == ipInterface.Index).ToList())
+            if (oldInterface != null)
+                IpInt.Remove(oldInterface);
     }
 
     /// <summary>
