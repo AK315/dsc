@@ -16,16 +16,19 @@ public class RouterBuilder
         _source = source;
     }
 
-    public async Task<IRouter> Build()
+    public async Task<Router> Build()
     {
         var result = new Router();
 
-        // Addint router system name
+        // Adding router system name
         result.Name = await _source.GetRouterSystemName(_router_ip);
 
         // Adding router interfaces
         result.AddIpInterfaces(await _source.GetRouterInterfacesAsync(_router_ip));
-        
+
+        // Adding router next hops
+        result.AddNextHops(await _source.GetRouterNextHopsAsync(_router_ip));
+
         return result;
     }
 }

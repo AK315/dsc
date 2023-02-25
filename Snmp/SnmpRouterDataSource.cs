@@ -48,6 +48,11 @@ public class SnmpRouterDataSource : IRouterDataSource
         return result;
     }
 
+    /// <summary>
+    /// Returns router's next hops collection
+    /// </summary>
+    /// <param name="ip">Router's IP address</param>
+    /// <returns></returns>
     public async Task<ICollection<IPAddress>> GetRouterNextHopsAsync(IPAddress ip)
     {
         ICollection<IPAddress> result = new List<IPAddress>();
@@ -58,8 +63,7 @@ public class SnmpRouterDataSource : IRouterDataSource
         var routingTable = await deviceService.GetTableAsync(SnmpOid.RouterRoutingTable);
 
         if (routingTable != null)
-        {
-        }
+            ParseRoutingTable(routingTable, ref result);
 
         return result;
     }
@@ -68,7 +72,7 @@ public class SnmpRouterDataSource : IRouterDataSource
     /// Parses SNMP table of router IP interfaces to a collection of IpInterface objects
     /// </summary>
     /// <param name="interfaceTable">SNMP table of router IP interfaces</param>
-    /// <param name="ipInterfaces">Collection of IpInterface objects</param>
+    /// <param name="ipInterfaces">Resulting collection of IpInterface objects</param>
     /// <exception cref="ArgumentNullException">interfaceTable must not be null</exception>
     protected void ParseInterfaceTable(IDictionary<string, IDictionary<uint, AsnType>> interfaceTable, ref ICollection<IpInterface> ipInterfaces)
     {
@@ -99,7 +103,7 @@ public class SnmpRouterDataSource : IRouterDataSource
     /// <summary>
     /// Parses SNMP table of router IP addresses to an existing collection of IpInterfae objects updating them
     /// </summary>
-    /// <param name="ipAddressesTable">SNMP table or douter IP addresses</param>
+    /// <param name="ipAddressesTable">SNMP table or router IP addresses</param>
     /// <param name="ipInterfaces">Existing not empty collection of IpInterface objects</param>
     /// <exception cref="ArgumentNullException">ipAddressesTable and ipInterfaces must not be null</exception>
     /// <exception cref="ArgumentOutOfRangeException">ipInterfaces must not be empty collection</exception>
@@ -146,4 +150,31 @@ public class SnmpRouterDataSource : IRouterDataSource
         }
     }
 
+    /// <summary>
+    /// Parses SNMP table of router routes for collection of IP addresses of next hops
+    /// </summary>
+    /// <param name="routingTable">SNMP table or router routes</param>
+    /// <param name="nextHops">Resulting collection of IP addresses of next hops</param>
+    /// <exception cref="ArgumentNullException">routingTable must not be null</exception>
+    protected void ParseRoutingTable(IDictionary<string, IDictionary<uint, AsnType>> routingTable, ref ICollection<IPAddress> nextHops)
+    {
+        if(routingTable == null)
+            throw new ArgumentNullException(nameof(routingTable));
+
+        nextHops = nextHops ?? new List<IPAddress>();
+
+        foreach (KeyValuePair<string, IDictionary<uint, AsnType>>? p in routingTable)
+        {
+            string? strIpAddress = p?.Value[4]?.ToString();
+            IPAddress? Ip;
+
+            if(!string.IsNullOrEmpty(strIpAddress) && IPAddress.TryParse(strIpAddress, out Ip))
+            {
+    
+                if(nextHops.Where(addr => addr.Equals(Ip)).Count() == 0)
+                    nextHops.Add(Ip);
+            }
+        }
+
+    }
 }

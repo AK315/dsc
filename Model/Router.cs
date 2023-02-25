@@ -5,7 +5,7 @@ using System.Net;
 /// <summary>
 /// Router entity.
 /// </summary>
-class Router : IRouter
+public class Router : IRouter
 {
 
     public Router()
@@ -141,22 +141,40 @@ class Router : IRouter
     /// <summary>
     /// Adds new next hop to the collection of next hops of the node
     /// </summary>
-    /// <param name="Ip">IP address</param>
-    public void AddNextHop(IPAddress Ip)
+    /// <param name="Ip">IP address of the next hop to add</param>
+    public void AddNextHop(IPAddress ip)
+    {
+        if(ip == null)
+            throw new ArgumentNullException(nameof(ip));
+
+        // No need to add zero-address hops 
+        if(BitConverter.ToInt32(ip.GetAddressBytes().Reverse().ToArray()) == 0)
+            return;
+
+        NextHops = NextHops ?? new List<IPAddress>();
+        if(NextHops.Where(addr => addr.Equals(ip)).Count() == 0)
+            NextHops.Add(ip);
+    }
+
+    /// <summary>
+    /// Adds a number of next hops to the collection of next hops of the node
+    /// </summary>
+    /// <param name="ips">Collection of IP addresses of next hops</param>
+    public void AddNextHops(ICollection<IPAddress> ips)
     {
         NextHops = NextHops ?? new List<IPAddress>();
-        if(NextHops.ToList<IPAddress>().Find(iface => iface.ToString() == Ip.ToString()) == null)
-            NextHops.Add(Ip);
+
+        foreach(var ip in ips)
+            AddNextHop(ip);
     }
 
     /// <summary>
     /// Removes next hop with specified IP from the collection of next hops of the node  
     /// </summary>
-    /// <param name="Ip"></param>
-    /// <param name="Mask"></param>
+    /// <param name="Ip">IP addres of the hop to remove </param>
     public void DelNextHop(IPAddress Ip)
     {
-        NextHops?.ToList<IPAddress>().RemoveAll(iface => iface.ToString() == Ip.ToString());
+        NextHops?.ToList<IPAddress>().RemoveAll(addr => addr.Equals(Ip));
     }
 
     /// <summary>

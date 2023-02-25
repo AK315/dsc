@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using CommandLine;
 using Microsoft.Extensions.Configuration;
 using System.Net;
+using System.Text.RegularExpressions;
 using dsc.Model;
 using dsc.Snmp;
 
@@ -19,7 +20,7 @@ var serviceProvider = new ServiceCollection()
     .BuildServiceProvider();
 
 var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<Program>();
-logger?.LogDebug("Start!");
+//logger?.LogDebug("Start!");
 
 // IConfiguration configuration = new ConfigurationBuilder()
 //     .AddEnvironmentVariables()
@@ -27,19 +28,76 @@ logger?.LogDebug("Start!");
 //     .Build();
 //IPAddress startAddress = configuration.GetValue<IPAddress>("address") ?? throw new ArgumentException("Parameter address is missing");
 
-IPAddress? startAddress = IPAddress.Parse("100.0.0.100");
+IPAddress? startAddress = null;
 
 var executionParameters = Parser.Default.ParseArguments<ExecutionParameters>(args)
     .WithParsed<ExecutionParameters>(ep =>
     {
-        IPAddress.TryParse(ep.StartAddress?.Trim().ToCharArray(), out startAddress);
-        Console.WriteLine($"Start IP address is {ep.StartAddress}");
+        string? strStartAddress = ep.StartAddress?.Trim();
+        Regex regex = new Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+        
+        if(!string.IsNullOrEmpty(strStartAddress) && regex.Matches(strStartAddress).Count() > 0)
+            IPAddress.TryParse(ep.StartAddress?.Trim(), out startAddress);
     });
 
+if(startAddress == null)
+{
+    Console.Write("Type IP address of the first router: ");
+    var strStartIP = Console.ReadLine();
 
-var routerBuilder = new RouterBuilder(startAddress, serviceProvider.GetService<IRouterDataSource>());
-var router = await routerBuilder.Build();
+    if (string.IsNullOrEmpty(strStartIP))
+    {
+        Console.WriteLine("Error: IP address cannot be empty. ");
+        Console.ReadLine();
+        return;
+    }
 
+    Regex regex = new Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+    if(regex.Matches(strStartIP).Count() == 0 || !IPAddress.TryParse(strStartIP.Trim(), out startAddress))
+    {
+        Console.WriteLine("IP address of incorrect format");
+        Console.ReadLine();
+        return;
+    }
+}
+
+Console.WriteLine($"Starting with IP address: {startAddress} ");
+
+var rootRouterBuilder = new RouterBuilder(startAddress, serviceProvider.GetService<IRouterDataSource>());
+var rootRouter = (Router) await rootRouterBuilder.Build();
+
+//var l3Routers = new List<Router>();
+
+var networkTopology = new Topology();
+
+var builderTasks = new List<Task<Router>>();
+
+if(rootRouter == null)
+{
+    Console.WriteLine("No router found");
+    return;
+}
+
+networkTopology.AddNode(rootRouter);
+
+if(rootRouter.NextHops != null)
+    foreach(var nextHop in rootRouter.NextHops)
+    {
+        var builder = new RouterBuilder(nextHop, serviceProvider.GetService<IRouterDataSource>());
+        builderTasks.Add(builder.Build());            
+    }
+
+Task.WaitAll(builderTasks.ToArray());
+
+foreach(var task in builderTasks)
+{
+    var router = task.Result;
+    if (router != null)
+    {
+        networkTopology.AddNode(router);
+        networkTopology.AddLink(rootRouter, router);
+    }
+}
 
 // SnmpWalker.v1GetNext();
 // SnmpWalker.v2GetBulk();
