@@ -3,11 +3,15 @@ namespace dsc.Model;
 public class Topology
 {
     public ICollection<IRouter> L3Routers { get; private set; }
+
+    public ICollection<IPCHost> Hosts { get; private set; }
+
     public ICollection<NodesLink<INode, INode>> Links { get; private set; }
 
     public Topology()
     {
-        L3Routers = new List<IRouter>();
+        L3Routers = new HashSet<IRouter>();
+        Hosts = new HashSet<IPCHost>();
         Links = new HashSet<NodesLink<INode, INode>>();
     }
 
@@ -17,6 +21,9 @@ public class Topology
         {
             case IRouter router:
                 L3Routers.Add(router);
+                break;
+            case IPCHost host:
+                Hosts.Add(host);
                 break;
         }
     }

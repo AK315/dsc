@@ -1,5 +1,6 @@
 namespace dsc.Model;
 
+using System.Collections;
 using System.Net;
 
 /// <summary>
@@ -11,6 +12,31 @@ public class Router : IRouter
     public Router()
     {
         
+    }
+
+    public override int GetHashCode()
+    {
+        if(IpInt == null || IpInt.Count() == 0)
+            return base.GetHashCode();
+
+        var hashCodes = new List<UInt64>();
+        foreach(var iface in IpInt)
+            hashCodes.Add(iface.Mac);
+        
+        hashCodes.Sort();
+
+        return ((IStructuralEquatable)hashCodes.ToArray()).GetHashCode(EqualityComparer<UInt64>.Default);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj == null || GetType() != obj.GetType())
+            return false;
+        
+        if(obj is IRouter)
+            return GetHashCode() == obj.GetHashCode();
+
+        return base.Equals (obj);
     }
 
     /// <summary>
@@ -25,23 +51,69 @@ public class Router : IRouter
     /// <summary>
     /// Adds ARP record to the collection of ARP records of the node
     /// </summary>
-    /// <param name="Mac">MAC address</param>
-    /// <param name="Ip">IP address</param>
-    public void AddArp(UInt32 Mac, IPAddress Ip)
+    /// <param name="Mac">ARP record to add</param>
+    public void AddArp(ArpRecord arpRecord)
     {
+        if(arpRecord == null)
+            return;
+
+        DelArp(arpRecord);
+
         Arp = Arp ?? new List<ArpRecord>();
-        if (Arp.ToList<ArpRecord>().Find(arp => arp.Mac == Mac && arp.Ip == Ip) == null)
-            Arp.Append<ArpRecord>(new ArpRecord(Mac, Ip));
+        Arp.Add(arpRecord);
     }
 
     /// <summary>
-    /// Removes ARP record with the specified MAC and IP from the collection of ARP records of the node
+    /// Adds several ARP recordsto the collection of ARP records of the node
     /// </summary>
-    /// <param name="Mac">MAC address</param>
-    /// <param name="Ip">IP address</param>
-    public void DelArp(UInt32 Mac, IPAddress Ip)
+    /// <param name="arpRecords">A number of ARP records to add</param>
+    public void AddArps(ICollection<ArpRecord> arpRecords)
     {
-        Arp?.ToList().RemoveAll(arp => arp.Mac == Mac && arp.Ip == Ip);
+        if(arpRecords == null)
+            return;
+
+        DelArps(arpRecords);
+
+        Arp = Arp ?? new List<ArpRecord>();
+        foreach (var arp in arpRecords)
+            Arp.Add(arp);
+    }
+
+    /// <summary>
+    /// Removes ARP record from the collection of ARP records of the node
+    /// </summary>
+    /// <param name="arpRecord">ARP record to remove</param>
+    public void DelArp(ArpRecord arpRecord)
+    {
+        if(Arp == null)
+            return;
+
+        if(arpRecord == null)
+            return;
+
+        foreach (var oldArp in Arp.Where(arp => arp.Ip.Equals(arpRecord.Ip) && arp.Mac == arpRecord.Mac).ToList())
+            if (oldArp!= null)
+                Arp.Remove(oldArp);
+    }
+
+    /// <summary>
+    /// Deletes ARP records from collection of ARP records of the node
+    /// </summary>
+    /// <param name="ipInterfaces">Collectin of ARP records to delete</param>
+    public void DelArps(ICollection<ArpRecord> arpRecords)
+    {
+        if(Arp == null)
+            return;
+
+        if(arpRecords == null)
+            return;
+
+        foreach (var arp in arpRecords)
+        {
+            foreach (var oldArpRecord in Arp.Where(rec => rec.Ip.Equals(arp.Ip) && rec.Mac == arp.Mac).ToList())
+                if (oldArpRecord != null)
+                    Arp.Remove(oldArpRecord);
+        }
     }
 
     /// <summary>

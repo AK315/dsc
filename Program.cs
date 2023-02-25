@@ -79,6 +79,13 @@ if(rootRouter == null)
 }
 
 networkTopology.AddNode(rootRouter);
+if(rootRouter.Arp != null)
+    foreach(ArpRecord arp in rootRouter.Arp)
+    {
+        PCHost pcHost = new PCHost(arp.Mac, arp.Ip);
+        networkTopology.AddNode(pcHost);
+        networkTopology.AddLink(rootRouter, pcHost);
+    }
 
 if(rootRouter.NextHops != null)
     foreach(var nextHop in rootRouter.NextHops)
@@ -87,7 +94,17 @@ if(rootRouter.NextHops != null)
         builderTasks.Add(builder.Build());            
     }
 
-Task.WaitAll(builderTasks.ToArray());
+try
+{
+    Task.WaitAll(builderTasks.ToArray());
+}
+catch(AggregateException ex)
+{
+    foreach(var e in ex.InnerExceptions)
+    {
+        Console.WriteLine(e.Message);
+    }
+}
 
 foreach(var task in builderTasks)
 {
@@ -96,6 +113,13 @@ foreach(var task in builderTasks)
     {
         networkTopology.AddNode(router);
         networkTopology.AddLink(rootRouter, router);
+        if(router.Arp != null)
+            foreach(ArpRecord arp in router.Arp)
+            {
+                PCHost pcHost = new PCHost(arp.Mac, arp.Ip);
+                networkTopology.AddNode(pcHost);
+                networkTopology.AddLink(router, pcHost);
+            }
     }
 }
 

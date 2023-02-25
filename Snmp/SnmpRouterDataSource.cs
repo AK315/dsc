@@ -52,7 +52,7 @@ public class SnmpRouterDataSource : IRouterDataSource
     /// Returns router's next hops collection
     /// </summary>
     /// <param name="ip">Router's IP address</param>
-    /// <returns></returns>
+    /// <returns>Router's next hops collection</returns>
     public async Task<ICollection<IPAddress>> GetRouterNextHopsAsync(IPAddress ip)
     {
         ICollection<IPAddress> result = new List<IPAddress>();
@@ -64,6 +64,26 @@ public class SnmpRouterDataSource : IRouterDataSource
 
         if (routingTable != null)
             ParseRoutingTable(routingTable, ref result);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Returns router's ARP table
+    /// </summary>
+    /// <param name="ip">Router's IP address</param>
+    /// <returns>Routers ARP records collection</returns>
+    public async Task<ICollection<ArpRecord>> GetRouterArpRecordsAsync(IPAddress ip)
+    {
+        ICollection<ArpRecord> result = new List<ArpRecord>();
+
+        SnmpDeviceService deviceService = new SnmpDeviceService(ip);
+        
+        // Collecting interfaces data
+        var arpTable = await deviceService.GetTableAsync(SnmpOid.RouterArpTable);
+
+        if (arpTable != null)
+            ParseArpTable(arpTable, ref result);
 
         return result;
     }
@@ -95,7 +115,9 @@ public class SnmpRouterDataSource : IRouterDataSource
             string? strMac = new string(p?.Value[6]?.ToString()?.ToCharArray().Where(c => !Char.IsWhiteSpace(c))?.ToArray());
             
             UInt64 mac;
-            if(index != default(int) && UInt64.TryParse(strMac, System.Globalization.NumberStyles.HexNumber, null, out mac))
+            if(index != default(int)
+                && !string.IsNullOrEmpty(strMac) 
+                && UInt64.TryParse(strMac, System.Globalization.NumberStyles.HexNumber, null, out mac))
                 ipInterfaces.Add(new IpInterface(index, description, mac));
         }
     }
@@ -173,6 +195,41 @@ public class SnmpRouterDataSource : IRouterDataSource
     
                 if(nextHops.Where(addr => addr.Equals(Ip)).Count() == 0)
                     nextHops.Add(Ip);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parses SNMP table of router's ARPs
+    /// </summary>
+    /// <param name="arpTable">SNMP table of ARPs</param>
+    /// <param name="arpRecords">Resulting collection of ARP records</param>
+    /// <exception cref="ArgumentNullException">arpTable must not be null</exception>
+    protected void ParseArpTable(IDictionary<string, IDictionary<uint, AsnType>>? arpTable, ref ICollection<ArpRecord> arpRecords)
+    {
+        if(arpTable == null)
+            throw new ArgumentNullException(nameof(arpTable));
+
+        arpRecords = arpRecords ?? new List<ArpRecord>();
+
+        foreach (KeyValuePair<string, IDictionary<uint, AsnType>>? p in arpTable)
+        {
+            // Extracting physical address (MAC)
+            string? strMac = new string(p?.Value[2]?.ToString()?.ToCharArray().Where(c => !Char.IsWhiteSpace(c))?.ToArray());
+
+            // Extractin IP address
+            string? strIpAddress = p?.Value[3]?.ToString();
+            
+            IPAddress? Ip;
+            UInt64 mac;
+
+            if (!string.IsNullOrEmpty(strIpAddress) 
+                && IPAddress.TryParse(strIpAddress, out Ip)
+                && !string.IsNullOrEmpty(strMac)
+                && UInt64.TryParse(strMac, System.Globalization.NumberStyles.HexNumber, null, out mac)
+                )
+            {
+                arpRecords.Add(new ArpRecord(mac, Ip));
             }
         }
 

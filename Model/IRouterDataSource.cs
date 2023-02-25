@@ -8,4 +8,6 @@ public interface IRouterDataSource
     public Task<ICollection<IpInterface>> GetRouterInterfacesAsync(IPAddress ip);
 
     public Task<ICollection<IPAddress>> GetRouterNextHopsAsync(IPAddress ip);
+
+    public Task<ICollection<ArpRecord>> GetRouterArpRecordsAsync(IPAddress ip);
 }
