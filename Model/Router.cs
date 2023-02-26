@@ -265,4 +265,9 @@ public class Router : IRouter
     {
         NextHops?.Clear();
     }
+
+    public override string ToString()
+    {
+        return $"Router [{ Name }]";
+    }
 }

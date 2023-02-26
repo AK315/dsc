@@ -8,7 +8,11 @@ public class PCHost : IPCHost
     public IPAddress? Ip { get; set; }
     
     public UInt64 Mac { get; private set; }
-    
+
+    public IPAddress GetIP() => Ip ?? new IPAddress(0);
+
+    public UInt64 GetMac() => Mac;
+
     public PCHost(UInt64 mac, IPAddress? ip = null)
     {
         Mac = mac;
@@ -36,4 +40,8 @@ public class PCHost : IPCHost
         return base.Equals (obj);
     }
 
+    public override string ToString()
+    {
+        return $"PC Host [{ Ip?.ToString() ?? "Unknown IP" }]";
+    }
 }

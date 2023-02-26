@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace dsc.Model;
@@ -24,26 +25,66 @@ public class Topology
         _source = source;
     }
 
+    /// <summary>
+    /// Builds topology
+    /// </summary>
+    /// <param name="startAddress">IP address of the first router node to discover</param>
+    /// <returns>Task</returns>
     public async Task BuildAsync(IPAddress startAddress)
     {
         await DiscoverRouterAsync(startAddress);
     }
 
+    /// <summary>
+    /// Discovers router with the specified IP address
+    /// </summary>
+    /// <param name="address">IP address of the router to be discovered</param>
+    /// <returns>Task</returns>
     protected async Task<IRouter?> DiscoverRouterAsync(IPAddress address)
     {
-        var routerBuilder = new RouterBuilder(address, _source);
-        var router = (Router) await routerBuilder.BuildAsync();
+        _logger?.LogInformation($"Discovering router with IP { address.ToString() }");
 
-        if(router != null && !NodeExists(router))
+        Router? router = null;
+
+        var routerBuilder = new RouterBuilder(address, _source);
+
+        try
         {
-            AddNode(router);
-            DiscoverRouterPCs(router);
-            await DiscoverRouterHopsAsync(router);
+            router = (Router)await routerBuilder.BuildAsync();
+            if(router != null && !NodeExists(router))
+            {
+                _logger?.LogDebug($"Router with IP { address.ToString() } descovered successfully.");
+
+                AddNode(router);
+
+                _logger?.LogDebug($"Doscovering PC Hosts connected to router with IP { address.ToString() }");
+                DiscoverRouterPCs(router);
+
+                _logger?.LogDebug($"Doscovering other routers connected to router with IP { address.ToString() }");
+                await DiscoverRouterHopsAsync(router);
+            }
+        }
+        catch(AggregateException ex)
+        {
+            if(ex.InnerExceptions != null)
+                foreach(var e in ex.InnerExceptions)
+                {
+                    _logger?.LogError($"An error occurred while discovering router with IP { address.ToString() } : { e.Message }");
+                }
+        }
+        catch(Exception e)
+        {
+            _logger?.LogError($"An error occurred while discovering router with IP { address.ToString() } : { e.Message }");
         }
 
         return router;
     }
 
+    /// <summary>
+    /// Discovers PCs connected to the router
+    /// </summary>
+    /// <param name="router">Router that PCs are connected to</param>
+    /// <exception cref="ArgumentNullException">router must not be null</exception>
     protected void DiscoverRouterPCs(IRouter router)
     {
         if(router == null)
@@ -52,12 +93,20 @@ public class Topology
         ICollection<ArpRecord> arpRecords = router.GetArpRecords();
         foreach(ArpRecord arp in arpRecords)
         {
-            PCHost pcHost = new PCHost(arp.Mac, arp.Ip);
+            PCHost pcHost = new PCHost( arp.Mac, arp.Ip );
+            _logger?.LogDebug($"Discovered PC Host with IP { arp?.Ip?.ToString() ?? "unknown" }");
+
             AddNode(pcHost);
             AddLink(router, pcHost);
         }
     }
 
+    /// <summary>
+    /// Discovers other routers connected to the router as next hops
+    /// </summary>
+    /// <param name="router">Router which next hops to be discovered</param>
+    /// <returns>Task</returns>
+    /// <exception cref="ArgumentNullException">router must not be null</exception>
     protected async Task DiscoverRouterHopsAsync(IRouter router)
     {
         if(router == null)
@@ -79,19 +128,30 @@ public class Topology
         }
     }
 
+    /// <summary>
+    /// Adds node to topology
+    /// </summary>
+    /// <param name="node">Node to be added to topology</param>
     public void AddNode(INode node)
     {
         switch (node)
         {
             case IRouter router:
                 L3Routers.Add(router);
+                _logger?.LogDebug($"{ router.ToString() } added to topology.");
                 break;
             case IPCHost host:
                 Hosts.Add(host);
+                _logger?.LogDebug($"{ host.ToString() } added to topology.");
                 break;
         }
     }
 
+    /// <summary>
+    /// Checks if node exists in disvocered topology
+    /// </summary>
+    /// <param name="node">Node to be checked</param>
+    /// <returns>True if node exists in topology</returns>
     public bool NodeExists(INode node)
     {
         switch (node)
@@ -105,6 +165,12 @@ public class Topology
         return false;
     }
 
+    /// <summary>
+    /// Adds link between two nodes to topology
+    /// </summary>
+    /// <param name="node1">First node</param>
+    /// <param name="node2">Second node</param>
+    /// <exception cref="ArgumentNullException">node1 and node2 must not be null</exception>
     public void AddLink(INode node1, INode node2)
     {
         if(node1 == null)
@@ -114,5 +180,54 @@ public class Topology
             throw new ArgumentNullException(nameof(node2));
 
         Links.Add(new NodesLink<INode, INode>(node1, node2));
+        
+        _logger?.LogDebug($"Link between { node1.ToString() } and { node2.ToString() } added to topology");
     }
+
+    /// <summary>
+    /// Returns topology string description
+    /// </summary>
+    /// <returns>Topology string description</returns>
+    public override string ToString()
+    {
+        string result = "Topology not discovered";
+
+        if(L3Routers != null && L3Routers.Count() > 0)
+        {
+            var sb = new StringBuilder();
+            sb.Append("Routers: ");
+            foreach(IRouter router in L3Routers)
+                sb.Append($"{ router?.GetDescription() ?? "Unknown router"}  ");
+
+            result = sb.ToString() + "\r\n\r\n";
+        }
+
+        if(Hosts != null && Hosts.Count() > 0)
+        {
+            var sb = new StringBuilder();
+            sb.Append("PC Hosts: ");
+            foreach(IPCHost host in Hosts)
+                sb.Append($"{ host.GetIP().ToString() ?? "Unknown host"}  ");
+
+            result += sb.ToString() + "\r\n\r\n";
+        }
+
+        if (Links != null && Links.Count() > 0)
+        {
+            var sb = new StringBuilder();
+            foreach (var link in Links)
+            {
+                var link2 = link;
+                sb.Append(link?.Node1?.ToString() ?? "This host");
+                sb.Append(" connected to ");
+                sb.Append(link?.Node2?.ToString() ?? "this host");
+                sb.Append("\r\n");
+            }
+
+            result += sb.ToString();
+        }
+
+        return result;
+    }
+
 }

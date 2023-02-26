@@ -19,7 +19,7 @@ public class SnmpDeviceService
 
     private readonly int _retry;
 
-    public SnmpDeviceService(IPAddress ip, int port = 161, string communityName = "public", int timeout = 5000, int retry = 3)
+    public SnmpDeviceService(IPAddress ip, int port = 161, string communityName = "public", int timeout = 2000, int retry = 0)
     {
         _ip = ip;
         _communityName = communityName;
@@ -71,6 +71,14 @@ public class SnmpDeviceService
                 if(response.Pdu.VbList.Count() > 0)
                     result = response.Pdu.VbList[0].Value;
             }
+        }
+        catch(SnmpException e)
+        {
+            throw new ApplicationException($"An error occurred while sending SNMP request to [{ _ip.ToString() }]: { e.Message } ", e);
+        }
+        catch
+        {
+            throw;
         }
         finally
         {
