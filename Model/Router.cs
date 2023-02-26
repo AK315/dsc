@@ -43,10 +43,15 @@ public class Router : IRouter
     /// System name of the router
     /// </summary>
     public string? Name { get; set; }
+
+    public string GetDescription() => Name ?? "";
+
     /// <summary>
     /// A collection or ARP records of the node
     /// </summary>
     public ICollection<ArpRecord>? Arp { get; private set; }
+
+    public ICollection<ArpRecord> GetArpRecords() => Arp ?? new List<ArpRecord>();
 
     /// <summary>
     /// Adds ARP record to the collection of ARP records of the node
@@ -129,6 +134,8 @@ public class Router : IRouter
     /// </summary>
     public ICollection<IpInterface>? IpInt { get; private set; }
 
+    public ICollection<IpInterface> GetIpInterfaces() => IpInt ?? new List<IpInterface>();
+
     /// <summary>
     /// Adds new IP Interface to the collection of IP Interfaces of the node
     /// </summary>
@@ -209,6 +216,8 @@ public class Router : IRouter
     /// Collection of IP addresses of next hops
     /// </summary>
     public ICollection<IPAddress>? NextHops { get; private set; }
+
+    public ICollection<IPAddress> GetNextHops() => NextHops ?? new List<IPAddress>();
 
     /// <summary>
     /// Adds new next hop to the collection of next hops of the node

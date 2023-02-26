@@ -16,7 +16,7 @@ public class RouterBuilder
         _source = source;
     }
 
-    public async Task<Router> Build()
+    public async Task<Router> BuildAsync()
     {
         var result = new Router();
 

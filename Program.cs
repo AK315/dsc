@@ -63,65 +63,15 @@ if(startAddress == null)
 
 Console.WriteLine($"Starting with IP address: {startAddress} ");
 
-var rootRouterBuilder = new RouterBuilder(startAddress, serviceProvider.GetService<IRouterDataSource>());
-var rootRouter = (Router) await rootRouterBuilder.Build();
+var routerDataSource = serviceProvider.GetService<IRouterDataSource>();
 
-//var l3Routers = new List<Router>();
-
-var networkTopology = new Topology();
-
-var builderTasks = new List<Task<Router>>();
-
-if(rootRouter == null)
+if(routerDataSource != null)
 {
-    Console.WriteLine("No router found");
-    return;
+    var topology = new Topology(routerDataSource, logger);
+    await topology.BuildAsync(startAddress);
 }
 
-networkTopology.AddNode(rootRouter);
-if(rootRouter.Arp != null)
-    foreach(ArpRecord arp in rootRouter.Arp)
-    {
-        PCHost pcHost = new PCHost(arp.Mac, arp.Ip);
-        networkTopology.AddNode(pcHost);
-        networkTopology.AddLink(rootRouter, pcHost);
-    }
-
-if(rootRouter.NextHops != null)
-    foreach(var nextHop in rootRouter.NextHops)
-    {
-        var builder = new RouterBuilder(nextHop, serviceProvider.GetService<IRouterDataSource>());
-        builderTasks.Add(builder.Build());            
-    }
-
-try
-{
-    Task.WaitAll(builderTasks.ToArray());
-}
-catch(AggregateException ex)
-{
-    foreach(var e in ex.InnerExceptions)
-    {
-        Console.WriteLine(e.Message);
-    }
-}
-
-foreach(var task in builderTasks)
-{
-    var router = task.Result;
-    if (router != null)
-    {
-        networkTopology.AddNode(router);
-        networkTopology.AddLink(rootRouter, router);
-        if(router.Arp != null)
-            foreach(ArpRecord arp in router.Arp)
-            {
-                PCHost pcHost = new PCHost(arp.Mac, arp.Ip);
-                networkTopology.AddNode(pcHost);
-                networkTopology.AddLink(router, pcHost);
-            }
-    }
-}
+Console.ReadLine();
 
 // SnmpWalker.v1GetNext();
 // SnmpWalker.v2GetBulk();
@@ -171,6 +121,3 @@ foreach(var task in builderTasks)
 //             Console.WriteLine("");
 //         }
 //     }
-
-
-Console.ReadLine();
