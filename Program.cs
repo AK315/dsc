@@ -1,76 +1,40 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.EventLog;
 using Microsoft.Extensions.Logging;
-using CommandLine;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Hosting;
+using System.Runtime.InteropServices;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Reflection;
+using CommandLine;
 using dsc.Model;
 using dsc.Snmp;
+using dsc;
 
-using SnmpSharpNet;
+var executionParameters = Parser.Default.ParseArguments<ServiceOptions>(args)
+    .MapResult<ServiceOptions, ExecutionParameters>(ExecutionParameters.FromServiceOptions, errors => null);
 
-//logger?.LogDebug("Start!");
-
-// IConfiguration configuration = new ConfigurationBuilder()
-//     .AddEnvironmentVariables()
-//     .AddCommandLine(args)
-//     .Build();
-//IPAddress startAddress = configuration.GetValue<IPAddress>("address") ?? throw new ArgumentException("Parameter address is missing");
-
-IPAddress? startAddress = null;
-LogLevel logLevel = LogLevel.Error;
-
-var executionParameters = Parser.Default.ParseArguments<ExecutionParameters>(args)
-    .WithParsed<ExecutionParameters>(ep =>
-    {
-        // Parsing start IP address
-        string? strStartAddress = ep.StartAddress?.Trim();
-        Regex regex = new Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-        
-        if(!string.IsNullOrEmpty(strStartAddress) && regex.Matches(strStartAddress).Count() > 0)
-            IPAddress.TryParse(ep.StartAddress?.Trim(), out startAddress);
-
-        // Parsing log level
-        if(!string.IsNullOrEmpty(ep.LogLevel))
-            switch(ep.LogLevel.ToLower().Trim())
-            {
-                case "info":
-                    logLevel = LogLevel.Information;
-                    break;
-                case "error":
-                    logLevel = LogLevel.Error;
-                    break;
-                case "debug":
-                    logLevel = LogLevel.Debug;
-                    break;
-            }
-    });
-
-if(startAddress == null)
+if(executionParameters == null || (executionParameters.StartAddress == null && executionParameters.IsService))
 {
-    Console.Write("Type IP address of the first router: ");
-    var strStartIP = Console.ReadLine();
+    Console.Write("Start IP address expexted");
+    Environment.Exit(-1);
+}
 
-    if (string.IsNullOrEmpty(strStartIP))
-    {
-        Console.WriteLine("Error: IP address cannot be empty. ");
-        Console.ReadLine();
-        return;
-    }
+if(executionParameters.StartAddress == null)
+    executionParameters.StartAddress = ReadIpAddress();
 
-    Regex regex = new Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
-    if(regex.Matches(strStartIP).Count() == 0 || !IPAddress.TryParse(strStartIP.Trim(), out startAddress))
-    {
-        Console.WriteLine("IP address of incorrect format");
-        Console.ReadLine();
-        return;
-    }
+if(executionParameters.StartAddress == null)
+{
+    Console.Write("Start IP address expexted");
+    Environment.Exit(-1);
 }
 
 var serviceProvider = new ServiceCollection()
     .AddLogging(builder =>
         {
-            builder.SetMinimumLevel(logLevel);
+            builder.SetMinimumLevel(executionParameters.LogLevel);
             builder.AddConsole();
         }
     )
@@ -79,67 +43,124 @@ var serviceProvider = new ServiceCollection()
 
 var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<Program>();
 
-
-Console.WriteLine($"Starting with IP address: {startAddress} \r\n");
-
-var routerDataSource = serviceProvider.GetService<IRouterDataSource>();
-
-if(routerDataSource != null)
+if(executionParameters.IsService)
 {
-    var topology = new Topology(routerDataSource, logger);
-    await topology.BuildAsync(startAddress);
 
-    Console.WriteLine(topology.ToString());
+}
+else
+{
+    await ExecuteConsole(executionParameters.StartAddress, serviceProvider, logger);
+
+    Console.WriteLine("\r\nPress Enter to quit...");
+    Console.ReadLine();
 }
 
-Console.WriteLine("\r\nPress any key to quit...");
-Console.ReadLine();
+async Task ExecuteConsole(IPAddress startAddress, IServiceProvider serviceProvider, ILogger? logger)
+{
+    if(serviceProvider == null)
+        throw new ArgumentNullException(nameof(serviceProvider));
+    
+    Console.WriteLine($"Starting with IP address: {startAddress} \r\n");
 
-// SnmpWalker.v1GetNext();
-// SnmpWalker.v2GetBulk();
+    var routerDataSource = serviceProvider.GetService<IRouterDataSource>();
 
-// string ip = "172.0.0.1";
-// //string oid = ".1.3.6.1.2.1.4.22";
-// string oid = ".1.3.6.1.2.1.2.1.0";
+    if (routerDataSource != null)
+    {
+        var topology = new Topology(routerDataSource, logger);
+        await topology.BuildAsync(startAddress);
 
-// var snmpDeviceService = new SnmpDeviceService(IPAddress.Parse(ip));
-// Console.WriteLine(await snmpDeviceService.GetIntValueAsync(oid));
+        Console.WriteLine(topology.ToString());
+    }
+}
 
-// oid = ".1.3.6.1.2.1.2.2";
+IHostBuilder CreateCommonBuilder<TStartup>(string[] args, bool requireAppSettings, bool requireHostingJson, string serviceName, bool addUserSecrets = false) where TStartup : class
+{
+    if (args == null) 
+        throw new ArgumentNullException(nameof(args));
 
-// var tableTask = snmpDeviceService.GetTableAsync(oid);
-// var result = await tableTask;
+    var builder = new HostBuilder();
 
-//     if(result.Count <= 0)
-//     {
-//         Console.WriteLine("No results returned.\n");
-//     } 
-//     else 
-//     {
-//         // Console.Write("Instance");
+    var executingAssembly = Assembly.GetExecutingAssembly().Location;
+    var executingAssemblyDirectory = Path.GetFullPath(Path.GetDirectoryName(executingAssembly));
 
-//         // foreach( uint column in tableColumns ) 
-//         // {
-//         //     Console.Write("\tColumn id {0} |", column);
-//         // }
+    builder.UseContentRoot(executingAssemblyDirectory);
+    builder.ConfigureHostConfiguration(config =>
+    {
+        config.AddEnvironmentVariables(prefix: "DOTNET_");
+        config.AddCommandLine(args);
+    });
 
-//         Console.WriteLine("");
+    builder.ConfigureAppConfiguration((hostingContext, config) =>
+    {
+        config
+            .SetBasePath(executingAssemblyDirectory)
+            .AddJsonFile("appsettings.json", optional: !requireAppSettings, reloadOnChange: true)
+            .AddJsonFile("hosting.json", optional: !requireHostingJson, reloadOnChange: false);
 
-//         foreach( KeyValuePair<string, IDictionary<uint, AsnType>> kvp in result ) 
-//         {
-//             Console.Write("{0}", kvp.Key);
+        if (addUserSecrets)
+        {
+            config.AddUserSecrets<TStartup>();
+        }
 
-//             foreach(uint column in kvp.Value.Keys) 
-//             {
-//                 // if( kvp.Value.ContainsKey(column) ) 
-//                 // {
-//                     Console.Write("\t{0} ({1}) |", kvp.Value[column].ToString(), SnmpConstants.GetTypeName(kvp.Value[column].Type));
-//                 // } 
-//                 // else 
-//                 // {
-//                 //     Console.Write("\t|");
-//                 // }
-//             }
-//             Console.WriteLine("");
-//         }
-//     }
+        config.AddEnvironmentVariables()
+            .AddCommandLine(args);
+
+        hostingContext.HostingEnvironment.ApplicationName = serviceName;
+    });
+
+    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    builder.ConfigureLogging((hostingContext, logging) =>
+        {
+            // IMPORTANT: This needs to be added *before* configuration is loaded, this lets
+            // the defaults be overridden by the configuration.
+            if (isWindows)
+            {
+                // Default the EventLogLoggerProvider to warning or above
+                logging.AddFilter<EventLogLoggerProvider>(level => level >= LogLevel.Warning);
+            }
+
+            logging.AddConfiguration(hostingContext.Configuration.GetSection("Logging"));
+            logging.AddConsole();
+            logging.AddDebug();
+            logging.AddEventSourceLogger();
+
+            if (isWindows)
+            {
+                // Add the EventLogLoggerProvider on windows machines
+                logging.AddEventLog();
+            }
+        })
+        .UseDefaultServiceProvider((context, options) =>
+        {
+            var isDevelopment = context.HostingEnvironment.IsDevelopment();
+            options.ValidateScopes = isDevelopment;
+            options.ValidateOnBuild = isDevelopment;
+        });
+
+    builder.ConfigureWebHostDefaults(b => { b.UseStartup<TStartup>(); });
+    builder.UseWindowsService();
+    builder.UseSystemd();
+
+    return builder;
+}
+
+IPAddress? ReadIpAddress()
+{
+    Console.Write("Type IP address of the first router: ");
+    var strStartIP = Console.ReadLine();
+
+    if (string.IsNullOrEmpty(strStartIP))
+    {
+        Console.WriteLine("Error: IP address cannot be empty. ");
+        return null;
+    }
+
+    Regex regex = new Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+    if(regex.Matches(strStartIP).Count() == 0 || !IPAddress.TryParse(strStartIP.Trim(), out IPAddress? result))
+    {
+        Console.WriteLine("IP address of incorrect format");
+        return null;
+    }
+
+    return result;
+}
